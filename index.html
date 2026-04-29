@@ -1214,13 +1214,13 @@ function closeDeleteModal() {
 }
 async function confirmDelete() {
   if (!pendingDeleteId) return;
+  const idToDelete = pendingDeleteId;
   closeDeleteModal();
   setLoading(true, '削除中...');
   try {
-    const result = await gasRequest({ action: 'delete', id: pendingDeleteId });
+    const result = await gasRequest({ action: 'delete', id: idToDelete });
     if (!result.ok) throw new Error(result.error);
-    if (entriesCache) entriesCache.data = entriesCache.data.filter(e => e.id !== pendingDeleteId);
-    pendingDeleteId = null;
+    if (entriesCache) entriesCache.data = entriesCache.data.filter(e => e.id !== idToDelete);
     updateStats();
     renderList();
     showToast('🗑️ 削除しました', 'success');
