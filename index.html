@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>クリエイティブ知識ベース</title>
+
+  <!-- Google Identity Services（Googleサインイン） -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    :root {
+      --color-primary: #4F46E5;
+      --color-accent:  #7C3AED;
+      --color-bg:      #F8F9FF;
+      --color-card:    #FFFFFF;
+      --color-border:  #E5E7EB;
+      --color-text:    #1F2937;
+      --color-sub:     #6B7280;
+      --color-success: #10B981;
+      --color-danger:  #EF4444;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(79,70,229,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+    }
+
+    /* ── ローディング ─────────────────────────────── */
+    #loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(255,255,255,0.85);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 1000; gap: 14px;
+    }
+    #loading-overlay.hidden { display: none; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #E5E7EB;
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay p { font-size: 13px; color: var(--color-sub); }
+
+    /* ── セットアップモーダル ─────────────────────── */
+    #setup-modal {
+      position: fixed; inset: 0;
+      background: rgba(30,27,75,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 900; padding: 20px;
+    }
+    #setup-modal.hidden { display: none; }
+    .setup-card {
+      background: white; border-radius: 16px; padding: 36px;
+      max-width: 520px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .setup-card h2 { font-size: 18px; margin-bottom: 6px; color: var(--color-primary); }
+    .setup-card .setup-desc { font-size: 13px; color: var(--color-sub); margin-bottom: 24px; line-height: 1.6; }
+    .setup-field { margin-bottom: 16px; }
+    .setup-field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    .setup-field input {
+      width: 100%; border: 1.5px solid var(--color-border); border-radius: 8px;
+      padding: 10px 12px; font-size: 13px; font-family: inherit;
+      background: #FAFAFA; color: var(--color-text);
+    }
+    .setup-field input:focus { outline: none; border-color: var(--color-primary); background: white; }
+    .setup-field .setup-hint { font-size: 11px; color: var(--color-sub); margin-top: 4px; }
+    .setup-error { font-size: 12px; color: var(--color-danger); margin-bottom: 12px; display: none; }
+    .setup-error.show { display: block; }
+
+    /* ── ログイン画面 ─────────────────────────────── */
+    #login-screen {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #EEF2FF 0%, #F3E8FF 100%);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 800; padding: 20px;
+    }
+    #login-screen.hidden { display: none; }
+    .login-card {
+      background: white; border-radius: 20px; padding: 44px 40px;
+      max-width: 420px; width: 100%; text-align: center;
+      box-shadow: 0 8px 40px rgba(79,70,229,0.15);
+    }
+    .login-logo { font-size: 40px; margin-bottom: 12px; }
+    .login-card h1 { font-size: 20px; font-weight: 700; color: var(--color-primary); margin-bottom: 6px; }
+    .login-card p { font-size: 13px; color: var(--color-sub); margin-bottom: 28px; line-height: 1.6; }
+    .login-btn-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
+    .login-note { font-size: 11px; color: #9CA3AF; }
+    .access-denied {
+      background: #FEF2F2; border: 1px solid #FECACA;
+      border-radius: 10px; padding: 14px 16px;
+      font-size: 13px; color: #DC2626; margin-bottom: 16px;
+      display: none; line-height: 1.5;
+    }
+    .access-denied.show { display: block; }
+    .btn-reconfig {
+      font-size: 11px; color: var(--color-sub); background: none;
+      border: none; cursor: pointer; text-decoration: underline;
+      padding: 0; font-family: inherit; margin-top: 10px; display: block; margin: 10px auto 0;
+    }
+
+    /* ── ヘッダー ─────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      color: white; padding: 22px 32px 0;
+    }
+    .header-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    header h1 { font-size: 19px; font-weight: 700; }
+    header p  { font-size: 12px; opacity: 0.85; margin-top: 3px; }
+    .version-badge {
+      display: inline-block; background: rgba(255,255,255,0.2);
+      border-radius: 20px; padding: 2px 9px; font-size: 10px; margin-left: 8px; vertical-align: middle;
+    }
+    .header-right { display: flex; align-items: flex-start; gap: 12px; }
+    .stats-bar { display: flex; gap: 20px; font-size: 12px; opacity: 0.9; }
+    .stat-item { display: flex; flex-direction: column; align-items: center; }
+    .stat-num { font-size: 20px; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+    .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .user-badge {
+      background: rgba(255,255,255,0.15); border-radius: 20px;
+      padding: 4px 12px; font-size: 11px; opacity: 0.9;
+    }
+    .btn-settings {
+      background: rgba(255,255,255,0.15); border: none; border-radius: 6px;
+      color: white; padding: 4px 10px; font-size: 11px; cursor: pointer;
+      font-family: inherit; opacity: 0.85; transition: opacity 0.18s;
+    }
+    .btn-settings:hover { opacity: 1; }
+
+    /* ── タブナビ ─────────────────────────────────── */
+    .tab-nav { display: flex; margin-top: 14px; }
+    .tab-btn {
+      flex: 1; padding: 11px 14px;
+      background: rgba(255,255,255,0.1); border: none;
+      border-radius: 10px 10px 0 0; color: rgba(255,255,255,0.7);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; font-family: inherit;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.18); color: white; }
+    .tab-btn.active { background: var(--color-bg); color: var(--color-primary); }
+
+    /* ── メインコンテンツ ─────────────────────────── */
+    main { max-width: 900px; margin: 0 auto; padding: 26px 20px 60px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── カード ──────────────────────────────────── */
+    .card {
+      background: var(--color-card); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 22px 26px; margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 700; color: var(--color-primary);
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 2px solid #EEF2FF;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    /* ── フォーム ─────────────────────────────────── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 12px; font-weight: 600; }
+    label .required { color: var(--color-danger); margin-left: 3px; }
+    label .hint { font-weight: 400; color: var(--color-sub); font-size: 11px; margin-left: 5px; }
+
+    input[type="text"], input[type="number"], input[type="month"],
+    textarea, select {
+      border: 1.5px solid var(--color-border); border-radius: 8px;
+      padding: 9px 11px; font-size: 13px; font-family: inherit;
+      color: var(--color-text); background: #FAFAFA;
+      transition: border-color 0.18s, box-shadow 0.18s; width: 100%;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.1); background: white;
+    }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* ── ラジオボタン（クライアントタイプ） ──────── */
+    .radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .radio-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 13px; border: 2px solid var(--color-border); border-radius: 8px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      color: var(--color-sub); background: white;
+      transition: all 0.15s; user-select: none;
+    }
+    .radio-btn input { display: none; }
+    .radio-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .radio-btn.selected { border-color: var(--color-primary); background: #EEF2FF; color: var(--color-primary); }
+
+    /* ── スター評価 ──────────────────────────────── */
+    .star-group { display: flex; gap: 3px; align-items: center; }
+    .star { font-size: 22px; cursor: pointer; color: #D1D5DB; transition: color 0.12s; user-select: none; }
+    .star.active { color: #F59E0B; }
+
+    /* ── タグ ────────────────────────────────────── */
+    .tag-input-area {
+      display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 9px;
+      border: 1.5px solid var(--color-border); border-radius: 8px;
+      background: #FAFAFA; min-height: 40px; align-items: center; cursor: text;
+    }
+    .tag-input-area:focus-within { border-color: var(--color-primary); background: white; }
+    .tag-chip {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #EEF2FF; color: var(--color-primary);
+      border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600;
+    }
+    .tag-chip .remove { cursor: pointer; color: #818CF8; margin-left: 2px; line-height: 1; }
+    .tag-chip .remove:hover { color: var(--color-danger); }
+    .tag-raw-input {
+      border: none; outline: none; background: transparent;
+      font-size: 12px; font-family: inherit; color: var(--color-text);
+      flex: 1; min-width: 70px;
+    }
+
+    /* ── ボタン ──────────────────────────────────── */
+    .btn-primary {
+      padding: 12px 26px;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      color: white; border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.18s, transform 0.1s; font-family: inherit;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      padding: 9px 16px; background: white; color: var(--color-primary);
+      border: 1.5px solid var(--color-primary); border-radius: 8px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .btn-secondary:hover { background: #EEF2FF; }
+
+    .btn-danger {
+      padding: 5px 11px; background: white; color: var(--color-danger);
+      border: 1.5px solid #FECACA; border-radius: 6px;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s; font-family: inherit;
+    }
+    .btn-danger:hover { background: #FEF2F2; }
+
+    .btn-copy {
+      padding: 7px 14px; background: var(--color-primary); color: white;
+      border: none; border-radius: 7px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .btn-copy:hover { background: #4338CA; }
+    .btn-copy.copied { background: var(--color-success); }
+
+    /* ── エラー表示 ───────────────────────────────── */
+    .error-msg {
+      background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
+      padding: 10px 14px; color: #DC2626; font-size: 12px;
+      margin-bottom: 12px; display: none;
+    }
+    .error-msg.show { display: block; }
+
+    /* ── トースト ─────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 26px; right: 26px; padding: 11px 18px;
+      border-radius: 10px; font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      opacity: 0; transform: translateY(8px);
+      transition: all 0.22s; pointer-events: none; z-index: 1100;
+    }
+    .toast.success { background: var(--color-success); color: white; }
+    .toast.error   { background: var(--color-danger);  color: white; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── 一覧タブ ─────────────────────────────────── */
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .filter-bar select { width: auto; padding: 7px 9px; font-size: 12px; }
+    .filter-bar input[type="text"] { width: auto; flex: 1; min-width: 120px; padding: 7px 9px; font-size: 12px; }
+    .result-count { font-size: 12px; color: var(--color-sub); margin-bottom: 10px; }
+
+    .entry-card {
+      background: var(--color-card); border: 1.5px solid var(--color-border);
+      border-radius: var(--radius); padding: 16px 18px; margin-bottom: 10px;
+      transition: box-shadow 0.18s;
+    }
+    .entry-card:hover { box-shadow: var(--shadow); }
+    .entry-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .entry-meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-medium { background: #DBEAFE; color: #1D4ED8; }
+    .badge-obj    { background: #D1FAE5; color: #065F46; }
+    .badge-type   { background: #FEF3C7; color: #92400E; }
+    .badge-genre  { background: #F3E8FF; color: #6B21A8; }
+    .badge-month  { background: #F1F5F9; color: #475569; }
+    .entry-stars { color: #F59E0B; font-size: 12px; margin-bottom: 5px; }
+    .entry-pattern { font-size: 13px; line-height: 1.6; margin-bottom: 6px; }
+    .entry-pattern strong { color: var(--color-primary); }
+    .entry-metrics {
+      display: flex; gap: 14px; font-size: 11px; color: var(--color-sub);
+      margin-bottom: 6px; flex-wrap: wrap;
+    }
+    .metric-item { display: flex; flex-direction: column; gap: 1px; }
+    .metric-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-val { font-size: 13px; font-weight: 700; color: var(--color-text); }
+    .entry-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .entry-tag { background: #EEF2FF; color: #4338CA; padding: 2px 7px; border-radius: 4px; font-size: 11px; }
+    .entry-registered-by { font-size: 10px; color: #9CA3AF; margin-top: 5px; }
+
+    .empty-state { text-align: center; padding: 56px 20px; color: var(--color-sub); }
+    .empty-icon  { font-size: 44px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── エクスポートタブ ─────────────────────────── */
+    .export-filter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .export-filter select { font-size: 12px; }
+    .export-options { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .export-opt {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 13px; border: 2px solid var(--color-border); border-radius: 8px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      color: var(--color-sub); background: white; transition: all 0.15s; user-select: none;
+    }
+    .export-opt input { display: none; }
+    .export-opt.selected { border-color: var(--color-primary); background: #EEF2FF; color: var(--color-primary); }
+    .export-preview {
+      background: #1E1B4B; border-radius: var(--radius); padding: 18px 22px; margin-top: 10px;
+    }
+    .export-preview-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+    }
+    .export-preview-header span { color: #A5B4FC; font-size: 12px; font-weight: 600; }
+    .export-text {
+      color: #E0E7FF; font-size: 12px; line-height: 1.8;
+      white-space: pre-wrap; word-break: break-all;
+      max-height: 400px; overflow-y: auto; padding-right: 4px;
+    }
+    .export-text::-webkit-scrollbar { width: 5px; }
+    .export-text::-webkit-scrollbar-thumb { background: #4338CA; border-radius: 3px; }
+
+    /* ── 削除モーダル ─────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: none; align-items: center; justify-content: center;
+      z-index: 800; padding: 20px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white; border-radius: var(--radius); padding: 26px;
+      max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal h3 { font-size: 15px; margin-bottom: 10px; }
+    .modal p { font-size: 13px; color: var(--color-sub); margin-bottom: 18px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    footer { text-align: center; padding: 18px; font-size: 11px; color: var(--color-sub); }
+
+    @media (max-width: 620px) {
+      header { padding: 16px 16px 0; }
+      .header-top { flex-direction: column; gap: 12px; }
+      main { padding: 18px 12px 60px; }
+      .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+      .form-grid .full { grid-column: 1; }
+      .export-filter { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── ローディングオーバーレイ ─────────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p id="loading-msg">読み込み中...</p>
+</div>
+
+<!-- ── 初回セットアップモーダル ─────────────────────────── -->
+<div id="setup-modal" class="hidden">
+  <div class="setup-card">
+    <h2>⚙️ 初回セットアップ</h2>
+    <p class="setup-desc">
+      GASデプロイURL と Google OAuth クライアントIDを入力してください。<br>
+      設定はこのブラウザに保存されます。
+    </p>
+    <div class="setup-field">
+      <label>GAS デプロイURL <span style="color:var(--color-danger)">*</span></label>
+      <input type="text" id="setup-gas-url" placeholder="https://script.google.com/macros/s/…/exec" />
+      <div class="setup-hint">GASエディタ → デプロイ → ウェブアプリのURL</div>
+    </div>
+    <div class="setup-field">
+      <label>Google OAuth クライアントID <span style="color:var(--color-danger)">*</span></label>
+      <input type="text" id="setup-client-id" placeholder="xxxxxxxxxx.apps.googleusercontent.com" />
+      <div class="setup-hint">Google Cloud Console → 認証情報 → OAuthクライアントID</div>
+    </div>
+    <div class="setup-error" id="setup-error"></div>
+    <button class="btn-primary" onclick="saveSetup()" style="width:100%">保存して続ける</button>
+  </div>
+</div>
+
+<!-- ── ログイン画面 ──────────────────────────────────────── -->
+<div id="login-screen" class="hidden">
+  <div class="login-card">
+    <div class="login-logo">📊</div>
+    <h1>クリエイティブ知識ベース</h1>
+    <p>Meta広告の勝ちパターンを<br>チームで蓄積・共有するツール</p>
+    <div class="access-denied" id="access-denied-msg"></div>
+    <div class="login-btn-wrap">
+      <div id="google-signin-btn"></div>
+    </div>
+    <div class="login-note">招待されたGoogleアカウントのみアクセスできます</div>
+    <button class="btn-reconfig" onclick="showSetup()">設定を変更する</button>
+  </div>
+</div>
+
+<!-- ── メインアプリ ──────────────────────────────────────── -->
+<div id="main-app" class="hidden">
+
+<header>
+  <div class="header-top">
+    <div>
+      <h1>クリエイティブ知識ベース <span class="version-badge">v1.0</span></h1>
+      <p>Meta広告の勝ちパターンを媒体 × 目的 × ジャンルで蓄積</p>
+    </div>
+    <div class="header-right">
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-num" id="stat-total">–</span>
+          <span class="stat-label">総登録件数</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" id="stat-genres">–</span>
+          <span class="stat-label">ジャンル数</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" id="stat-months">–</span>
+          <span class="stat-label">分析月数</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="user-badge" id="user-badge">–</div>
+        <button class="btn-settings" onclick="handleSignOut()">ログアウト</button>
+        <button class="btn-settings" onclick="showSetup()">⚙ 設定</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('register', this)">＋ 新規登録</button>
+    <button class="tab-btn" onclick="switchTab('list', this)">知識ベース一覧</button>
+    <button class="tab-btn" onclick="switchTab('export', this)">エクスポート</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ==================== TAB 1: 新規登録 ==================== -->
+<div class="tab-content active" id="tab-register">
+  <div class="error-msg" id="reg-error"></div>
+
+  <div class="card">
+    <div class="card-title">📅 分析基本情報</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>分析月 <span class="required">*</span></label>
+        <input type="month" id="reg-month" />
+      </div>
+      <div class="form-group">
+        <label>媒体 <span class="required">*</span></label>
+        <select id="reg-medium">
+          <option value="">選択してください</option>
+          <option>Meta広告（Facebook）</option>
+          <option>Meta広告（Instagram）</option>
+          <option>Meta広告（Facebook + Instagram）</option>
+          <option>Google広告</option>
+          <option>YouTube広告</option>
+          <option>TikTok広告</option>
+          <option>Twitter/X広告</option>
+          <option>その他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>広告目的 <span class="required">*</span></label>
+        <select id="reg-objective">
+          <option value="">選択してください</option>
+          <option>認知・ブランディング</option>
+          <option>リーチ拡大</option>
+          <option>トラフィック（クリック）</option>
+          <option>動画視聴</option>
+          <option>アプリインストール</option>
+          <option>リード獲得</option>
+          <option>コンバージョン（購入・申込）</option>
+          <option>カタログ販売</option>
+          <option>来店促進</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>広告フォーマット <span class="required">*</span></label>
+        <select id="reg-format">
+          <option value="">選択してください</option>
+          <option>静止画（単一）</option>
+          <option>動画</option>
+          <option>カルーセル</option>
+          <option>ストーリーズ</option>
+          <option>リール</option>
+          <option>コレクション</option>
+          <option>その他</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🏷️ クライアント分類</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>クライアントタイプ <span class="required">*</span></label>
+        <div class="radio-group" id="client-type-group">
+          <label class="radio-btn selected" onclick="selectClientType('broadcasting', this)">
+            <input type="radio" name="clientType" value="broadcasting" checked />📺 放送局
+          </label>
+          <label class="radio-btn" onclick="selectClientType('magazine', this)">
+            <input type="radio" name="clientType" value="magazine" />📰 雑誌社
+          </label>
+          <label class="radio-btn" onclick="selectClientType('general', this)">
+            <input type="radio" name="clientType" value="general" />🏢 一般企業
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ジャンル <span class="required">*</span><span class="hint">タイプに連動</span></label>
+        <select id="reg-genre"></select>
+      </div>
+      <div class="form-group">
+        <label>ブランド名<span class="hint">任意・参照用</span></label>
+        <input type="text" id="reg-brand" placeholder="例：木曜劇場「〇〇」" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🎨 クリエイティブ詳細</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>広告コピー（キャッチコピー）</label>
+        <input type="text" id="reg-copy" placeholder="例：見逃したくない、この瞬間。" />
+      </div>
+      <div class="form-group full">
+        <label>ビジュアル概要</label>
+        <textarea id="reg-visual" placeholder="例：番組の緊張感あるシーンカット + テロップで放送日時を強調。背景は暗め。"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>参照スクリーンショット<span class="hint">ファイル名 or パス（任意）</span></label>
+        <input type="text" id="reg-screenshot" placeholder="例：2026-03_drama_meta.png" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 パフォーマンス指標</div>
+    <div class="form-grid-3">
+      <div class="form-group"><label>CTR（%）</label><input type="number" id="reg-ctr" placeholder="3.2" step="0.01" min="0" /></div>
+      <div class="form-group"><label>CPC（¥）</label><input type="number" id="reg-cpc" placeholder="89" min="0" /></div>
+      <div class="form-group"><label>CPM（¥）</label><input type="number" id="reg-cpm" placeholder="1200" min="0" /></div>
+      <div class="form-group"><label>CVR（%）</label><input type="number" id="reg-cvr" placeholder="4.1" step="0.01" min="0" /></div>
+      <div class="form-group"><label>CPA（¥）</label><input type="number" id="reg-cpa" placeholder="2100" min="0" /></div>
+      <div class="form-group"><label>ROAS（%）</label><input type="number" id="reg-roas" placeholder="450" min="0" /></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💡 分析・洞察</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>勝ちパターン <span class="required">*</span><span class="hint">再現できる成功要因</span></label>
+        <textarea id="reg-pattern" placeholder="例：番組のラスト5秒の衝撃シーンを冒頭に持ってきて「続きはTVで」とつなぐ構成。視聴意欲を高める感情訴求が効いた。"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>気づき・学び<span class="hint">次回に活かすメモ</span></label>
+        <textarea id="reg-insight" placeholder="例：タップ率はストーリーズ > フィード。上部1/3にテキストを集中させると視認率が上がる。"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>パターン強度</label>
+        <div class="star-group" id="star-group">
+          <span class="star" onclick="setStar(1)">★</span>
+          <span class="star" onclick="setStar(2)">★</span>
+          <span class="star" onclick="setStar(3)">★</span>
+          <span class="star" onclick="setStar(4)">★</span>
+          <span class="star" onclick="setStar(5)">★</span>
+          <span style="font-size:11px;color:var(--color-sub);margin-left:7px;" id="star-label">（未評価）</span>
+        </div>
+      </div>
+      <div class="form-group full">
+        <label>タグ<span class="hint">Enterまたはカンマで追加</span></label>
+        <div class="tag-input-area" id="tag-area" onclick="focusTagInput()">
+          <input class="tag-raw-input" id="tag-input" placeholder="タグを入力…"
+            onkeydown="handleTagKey(event)" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:4px;">
+    <button class="btn-secondary" onclick="resetForm()">リセット</button>
+    <button class="btn-primary" id="reg-btn" onclick="registerEntry()">✅ 知識ベースに登録する</button>
+  </div>
+</div>
+
+<!-- ==================== TAB 2: 知識ベース一覧 ==================== -->
+<div class="tab-content" id="tab-list">
+  <div class="filter-bar">
+    <select id="filter-medium" onchange="renderList()">
+      <option value="">すべての媒体</option>
+      <option>Meta広告（Facebook）</option>
+      <option>Meta広告（Instagram）</option>
+      <option>Meta広告（Facebook + Instagram）</option>
+      <option>Google広告</option>
+      <option>YouTube広告</option>
+      <option>TikTok広告</option>
+    </select>
+    <select id="filter-objective" onchange="renderList()">
+      <option value="">すべての目的</option>
+      <option>認知・ブランディング</option>
+      <option>リーチ拡大</option>
+      <option>トラフィック（クリック）</option>
+      <option>動画視聴</option>
+      <option>リード獲得</option>
+      <option>コンバージョン（購入・申込）</option>
+    </select>
+    <select id="filter-clienttype" onchange="updateListGenreFilter(); renderList();">
+      <option value="">すべてのタイプ</option>
+      <option value="broadcasting">放送局</option>
+      <option value="magazine">雑誌社</option>
+      <option value="general">一般企業</option>
+    </select>
+    <select id="filter-genre" onchange="renderList()">
+      <option value="">すべてのジャンル</option>
+    </select>
+    <input type="text" id="filter-search" placeholder="キーワード検索…" oninput="renderList()" />
+    <button class="btn-secondary" onclick="clearFilters()">クリア</button>
+  </div>
+  <div class="result-count" id="list-count"></div>
+  <div id="entry-list"></div>
+</div>
+
+<!-- ==================== TAB 3: エクスポート ==================== -->
+<div class="tab-content" id="tab-export">
+  <div class="card">
+    <div class="card-title">🎯 絞り込み条件</div>
+    <div class="export-filter">
+      <div class="form-group">
+        <label>媒体</label>
+        <select id="exp-medium" onchange="renderExport()">
+          <option value="">すべて</option>
+          <option>Meta広告（Facebook）</option>
+          <option>Meta広告（Instagram）</option>
+          <option>Meta広告（Facebook + Instagram）</option>
+          <option>Google広告</option>
+          <option>YouTube広告</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>広告目的</label>
+        <select id="exp-objective" onchange="renderExport()">
+          <option value="">すべて</option>
+          <option>認知・ブランディング</option>
+          <option>リーチ拡大</option>
+          <option>トラフィック（クリック）</option>
+          <option>動画視聴</option>
+          <option>リード獲得</option>
+          <option>コンバージョン（購入・申込）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>クライアントタイプ</label>
+        <select id="exp-clienttype" onchange="updateExpGenre(); renderExport();">
+          <option value="">すべて</option>
+          <option value="broadcasting">放送局</option>
+          <option value="magazine">雑誌社</option>
+          <option value="general">一般企業</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ジャンル</label>
+        <select id="exp-genre" onchange="renderExport()">
+          <option value="">すべて</option>
+        </select>
+      </div>
+    </div>
+    <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">出力形式</label>
+    <div class="export-options">
+      <label class="export-opt selected" onclick="selectExportFmt('prompt', this)">
+        <input type="radio" name="expFmt" value="prompt" checked />📋 プロンプト挿入用
+      </label>
+      <label class="export-opt" onclick="selectExportFmt('markdown', this)">
+        <input type="radio" name="expFmt" value="markdown" />📄 Markdownドキュメント
+      </label>
+      <label class="export-opt" onclick="selectExportFmt('json', this)">
+        <input type="radio" name="expFmt" value="json" />💾 JSONバックアップ
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--color-sub);" id="exp-matched-count"></div>
+  </div>
+  <div class="export-preview">
+    <div class="export-preview-header">
+      <span id="exp-format-label">📋 クリエイティブ生成ツール プロンプト挿入用</span>
+      <button class="btn-copy" id="exp-copy-btn" onclick="copyExport()">コピーする</button>
+    </div>
+    <div class="export-text" id="exp-output">条件を選択してください。</div>
+  </div>
+</div>
+
+</main>
+<footer>クリエイティブ知識ベース v1.0.0 &nbsp;|&nbsp; データはGoogle Sheetsに保存されます</footer>
+
+</div><!-- /#main-app -->
+
+<!-- ── 削除モーダル ─────────────────────────────────────── -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h3>エントリを削除しますか？</h3>
+    <p>この操作は取り消せません。</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeDeleteModal()">キャンセル</button>
+      <button class="btn-danger" onclick="confirmDelete()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// 定数
+// ============================================================
+const CONFIG_KEY = 'ckb_config_v1';
+
+const GENRES = {
+  broadcasting: ['ドラマ','バラエティ','ニュース・情報','スポーツ','アニメ・キッズ','映画・シネマ','ドキュメンタリー','音楽・エンタメ','その他'],
+  magazine:     ['ファッション','ライフスタイル','美容・コスメ','ビジネス・経済','女性向け総合','男性向け総合','グルメ・料理','旅行・アウトドア','スポーツ・健康','その他'],
+  general:      ['食品・飲料','化粧品・美容','ファッション・アパレル','健康・医療・フィットネス','金融・保険','不動産・住宅','教育・スクール','EC・通販','ゲーム・エンタメ','自動車','IT・SaaS','その他']
+};
+const CLIENT_TYPE_LABEL = { broadcasting:'放送局', magazine:'雑誌社', general:'一般企業' };
+const STAR_LABELS = ['','参考程度','一定の効果あり','再現性あり','強力なパターン','必ず使う鉄板'];
+
+// ============================================================
+// 状態
+// ============================================================
+let config = {};          // { gasUrl, googleClientId }
+let authToken = '';       // Google ID token
+let tokenExpiry = 0;      // Unix ms
+let currentUser = '';     // email
+let entriesCache = null;  // { data: [], fetchedAt: ms }
+let selectedClientType = 'broadcasting';
+let selectedStars = 0;
+let currentTags = [];
+let exportFormat = 'prompt';
+let pendingDeleteId = null;
+
+// ============================================================
+// 設定管理
+// ============================================================
+function loadConfig() {
+  try { config = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'); } catch { config = {}; }
+}
+function saveConfig() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+}
+
+function showSetup() {
+  document.getElementById('setup-gas-url').value  = config.gasUrl || '';
+  document.getElementById('setup-client-id').value = config.googleClientId || '';
+  document.getElementById('setup-error').classList.remove('show');
+  document.getElementById('setup-modal').classList.remove('hidden');
+}
+
+function saveSetup() {
+  const url = document.getElementById('setup-gas-url').value.trim();
+  const cid = document.getElementById('setup-client-id').value.trim();
+  const errEl = document.getElementById('setup-error');
+
+  if (!url || !cid) {
+    errEl.textContent = 'どちらも必須です。';
+    errEl.classList.add('show');
+    return;
+  }
+  if (!url.startsWith('https://script.google.com/')) {
+    errEl.textContent = 'GAS URLは https://script.google.com/ で始まる必要があります。';
+    errEl.classList.add('show');
+    return;
+  }
+  config.gasUrl = url;
+  config.googleClientId = cid;
+  saveConfig();
+  document.getElementById('setup-modal').classList.add('hidden');
+
+  // 設定変更後は再ログイン
+  authToken = '';
+  tokenExpiry = 0;
+  currentUser = '';
+  showLoginScreen();
+  initGoogleSignIn();
+}
+
+// ============================================================
+// Google サインイン
+// ============================================================
+function initGoogleSignIn() {
+  if (!config.googleClientId) return;
+  if (typeof google === 'undefined') {
+    setTimeout(initGoogleSignIn, 200);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: config.googleClientId,
+    callback: handleSignIn,
+    auto_select: true,
+  });
+  google.accounts.id.renderButton(
+    document.getElementById('google-signin-btn'),
+    { theme: 'outline', size: 'large', locale: 'ja', text: 'signin_with' }
+  );
+  // One Tap（自動ログイン試行）
+  google.accounts.id.prompt();
+}
+
+function handleSignIn(response) {
+  if (!response.credential) return;
+  authToken = response.credential;
+  // JWTのpayloadをデコードして有効期限とメールを取得
+  try {
+    const payload = JSON.parse(atob(authToken.split('.')[1]));
+    tokenExpiry = payload.exp * 1000;
+    currentUser = payload.email || '';
+  } catch {
+    tokenExpiry = Date.now() + 3600000;
+  }
+  // GAS側で検証（アクセス権確認）
+  setLoading(true, 'アクセス権を確認中...');
+  gasRequest({ action: 'list' })
+    .then(function(result) {
+      setLoading(false);
+      if (!result.ok) {
+        if (result.error === 'ACCESS_DENIED') {
+          showAccessDenied(result.email || currentUser);
+        } else {
+          showToast('エラー：' + result.error, 'error');
+        }
+        return;
+      }
+      entriesCache = { data: result.entries, fetchedAt: Date.now() };
+      showApp();
+    })
+    .catch(function(err) {
+      setLoading(false);
+      showToast('接続エラー：' + err.message, 'error');
+    });
+}
+
+function handleSignOut() {
+  if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
+  authToken = '';
+  tokenExpiry = 0;
+  currentUser = '';
+  entriesCache = null;
+  showLoginScreen();
+}
+
+function showAccessDenied(email) {
+  const el = document.getElementById('access-denied-msg');
+  el.textContent = email + ' はアクセス権がありません。管理者に招待を依頼してください。';
+  el.classList.add('show');
+}
+
+function isTokenValid() {
+  return authToken && Date.now() < tokenExpiry - 60000;
+}
+
+// ============================================================
+// GAS API
+// ============================================================
+async function gasRequest(params) {
+  if (!config.gasUrl) throw new Error('GAS URLが設定されていません');
+  if (!isTokenValid()) {
+    showLoginScreen();
+    throw new Error('セッションが切れました。再ログインしてください。');
+  }
+  const url = new URL(config.gasUrl);
+  url.searchParams.set('token', authToken);
+  Object.entries(params).forEach(function([k, v]) {
+    url.searchParams.set(k, String(v));
+  });
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// エントリ一覧取得（30秒キャッシュ）
+async function getEntries(forceRefresh) {
+  if (!forceRefresh && entriesCache && Date.now() - entriesCache.fetchedAt < 30000) {
+    return entriesCache.data;
+  }
+  const result = await gasRequest({ action: 'list' });
+  if (!result.ok) throw new Error(result.error);
+  entriesCache = { data: result.entries, fetchedAt: Date.now() };
+  return entriesCache.data;
+}
+
+// ============================================================
+// 画面切り替え
+// ============================================================
+function setLoading(show, msg) {
+  document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function showLoginScreen() {
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('main-app').classList.add('hidden');
+  setLoading(false);
+}
+
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('main-app').classList.remove('hidden');
+  document.getElementById('user-badge').textContent = currentUser;
+  updateStats();
+  initForm();
+}
+
+// ============================================================
+// タブ切り替え
+// ============================================================
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'list') loadList();
+  if (name === 'export') loadExport();
+}
+
+// ============================================================
+// 統計更新
+// ============================================================
+function updateStats() {
+  if (!entriesCache) return;
+  const entries = entriesCache.data;
+  document.getElementById('stat-total').textContent  = entries.length;
+  document.getElementById('stat-genres').textContent = new Set(entries.map(e => e.genre).filter(Boolean)).size;
+  document.getElementById('stat-months').textContent = new Set(entries.map(e => e.month).filter(Boolean)).size;
+}
+
+// ============================================================
+// フォーム
+// ============================================================
+function initForm() {
+  const now = new Date();
+  document.getElementById('reg-month').value =
+    now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  selectedClientType = 'broadcasting';
+  document.querySelectorAll('#client-type-group .radio-btn').forEach((b, i) => b.classList.toggle('selected', i === 0));
+  updateGenreSelect('broadcasting');
+}
+
+function selectClientType(type, el) {
+  selectedClientType = type;
+  document.querySelectorAll('#client-type-group .radio-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  updateGenreSelect(type);
+}
+
+function updateGenreSelect(type) {
+  const sel = document.getElementById('reg-genre');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    GENRES[type].map(g => `<option>${g}</option>`).join('');
+}
+
+function setStar(val) {
+  selectedStars = val;
+  document.querySelectorAll('#star-group .star').forEach((s, i) => s.classList.toggle('active', i < val));
+  document.getElementById('star-label').textContent = val > 0 ? `★${val} ${STAR_LABELS[val]}` : '（未評価）';
+}
+
+function focusTagInput() { document.getElementById('tag-input').focus(); }
+
+function handleTagKey(e) {
+  const val = e.target.value.trim();
+  if ((e.key === 'Enter' || e.key === ',') && val) {
+    e.preventDefault();
+    addTag(val.replace(/,$/, '').trim());
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && currentTags.length) {
+    removeTag(currentTags.length - 1);
+  }
+}
+function addTag(text) {
+  if (!text || currentTags.includes(text)) return;
+  currentTags.push(text);
+  renderTags();
+}
+function removeTag(idx) {
+  currentTags.splice(idx, 1);
+  renderTags();
+}
+function renderTags() {
+  const area = document.getElementById('tag-area');
+  const input = document.getElementById('tag-input');
+  area.querySelectorAll('.tag-chip').forEach(el => el.remove());
+  currentTags.forEach(function(tag, i) {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = esc(tag) + ' <span class="remove" onclick="removeTag(' + i + ')">×</span>';
+    area.insertBefore(chip, input);
+  });
+}
+
+function resetForm() {
+  ['reg-medium','reg-objective','reg-format','reg-genre'].forEach(id => document.getElementById(id).value = '');
+  ['reg-brand','reg-copy','reg-visual','reg-screenshot',
+   'reg-ctr','reg-cpc','reg-cpm','reg-cvr','reg-cpa','reg-roas',
+   'reg-pattern','reg-insight'].forEach(id => document.getElementById(id).value = '');
+  selectedStars = 0; setStar(0);
+  currentTags = []; renderTags();
+  document.getElementById('reg-error').classList.remove('show');
+  initForm();
+}
+
+async function registerEntry() {
+  const month     = document.getElementById('reg-month').value;
+  const medium    = document.getElementById('reg-medium').value;
+  const objective = document.getElementById('reg-objective').value;
+  const format    = document.getElementById('reg-format').value;
+  const genre     = document.getElementById('reg-genre').value;
+  const pattern   = document.getElementById('reg-pattern').value.trim();
+
+  const errs = [];
+  if (!month)     errs.push('分析月');
+  if (!medium)    errs.push('媒体');
+  if (!objective) errs.push('広告目的');
+  if (!format)    errs.push('広告フォーマット');
+  if (!genre)     errs.push('ジャンル');
+  if (!pattern)   errs.push('勝ちパターン');
+
+  const errEl = document.getElementById('reg-error');
+  if (errs.length) {
+    errEl.textContent = '必須項目が未入力です：' + errs.join('、');
+    errEl.classList.add('show');
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  errEl.classList.remove('show');
+
+  const entry = {
+    month, medium, objective, format,
+    clientType: selectedClientType, genre,
+    brand:      document.getElementById('reg-brand').value.trim(),
+    copy:       document.getElementById('reg-copy').value.trim(),
+    visual:     document.getElementById('reg-visual').value.trim(),
+    screenshot: document.getElementById('reg-screenshot').value.trim(),
+    metrics: {
+      ctr:  parseFloat(document.getElementById('reg-ctr').value)  || null,
+      cpc:  parseFloat(document.getElementById('reg-cpc').value)  || null,
+      cpm:  parseFloat(document.getElementById('reg-cpm').value)  || null,
+      cvr:  parseFloat(document.getElementById('reg-cvr').value)  || null,
+      cpa:  parseFloat(document.getElementById('reg-cpa').value)  || null,
+      roas: parseFloat(document.getElementById('reg-roas').value) || null,
+    },
+    pattern, insight: document.getElementById('reg-insight').value.trim(),
+    stars: selectedStars, tags: [...currentTags]
+  };
+
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true;
+  btn.textContent = '登録中...';
+
+  try {
+    const result = await gasRequest({
+      action: 'add',
+      payload: encodeURIComponent(JSON.stringify(entry))
+    });
+    if (!result.ok) throw new Error(result.error);
+
+    // キャッシュに追加
+    if (entriesCache) entriesCache.data.unshift(result.entry);
+    updateStats();
+    showToast('✅ 知識ベースに登録しました！', 'success');
+    resetForm();
+  } catch (err) {
+    showToast('エラー：' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ 知識ベースに登録する';
+  }
+}
+
+// ============================================================
+// 一覧タブ
+// ============================================================
+async function loadList() {
+  setLoading(true, '一覧を読み込み中...');
+  try {
+    await getEntries();
+    updateStats();
+    updateListGenreFilter();
+    renderList();
+  } catch (err) {
+    showToast('読み込みエラー：' + err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function updateListGenreFilter() {
+  const typeVal = document.getElementById('filter-clienttype').value;
+  const sel = document.getElementById('filter-genre');
+  sel.innerHTML = '<option value="">すべてのジャンル</option>';
+  const types = typeVal ? [typeVal] : ['broadcasting','magazine','general'];
+  [...new Set(types.flatMap(t => GENRES[t]))].forEach(g => {
+    sel.innerHTML += `<option>${g}</option>`;
+  });
+}
+
+function filterEntries() {
+  const medium   = document.getElementById('filter-medium').value;
+  const obj      = document.getElementById('filter-objective').value;
+  const ct       = document.getElementById('filter-clienttype').value;
+  const genre    = document.getElementById('filter-genre').value;
+  const search   = document.getElementById('filter-search').value.toLowerCase();
+  const entries  = entriesCache ? entriesCache.data : [];
+
+  return entries.filter(e => {
+    if (medium && e.medium     !== medium) return false;
+    if (obj    && e.objective  !== obj)   return false;
+    if (ct     && e.clientType !== ct)    return false;
+    if (genre  && e.genre      !== genre) return false;
+    if (search) {
+      const hay = [e.pattern, e.insight, e.copy, e.visual, e.brand, ...(e.tags||[])]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function renderList() {
+  const entries = filterEntries();
+  document.getElementById('list-count').textContent = entries.length + '件の知見が見つかりました';
+  const container = document.getElementById('entry-list');
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>条件に一致する知見がありません。<br>新規登録タブから分析結果を登録してください。</p></div>`;
+    return;
+  }
+  container.innerHTML = entries.map(renderEntryCard).join('');
+}
+
+function renderEntryCard(e) {
+  const stars = e.stars ? '★'.repeat(e.stars) + '☆'.repeat(5 - e.stars) : '';
+  const metrics = [
+    e.metrics.ctr  != null ? `<div class="metric-item"><span class="metric-label">CTR</span><span class="metric-val">${e.metrics.ctr}%</span></div>` : '',
+    e.metrics.cpc  != null ? `<div class="metric-item"><span class="metric-label">CPC</span><span class="metric-val">¥${e.metrics.cpc}</span></div>` : '',
+    e.metrics.cvr  != null ? `<div class="metric-item"><span class="metric-label">CVR</span><span class="metric-val">${e.metrics.cvr}%</span></div>` : '',
+    e.metrics.cpa  != null ? `<div class="metric-item"><span class="metric-label">CPA</span><span class="metric-val">¥${e.metrics.cpa}</span></div>` : '',
+    e.metrics.roas != null ? `<div class="metric-item"><span class="metric-label">ROAS</span><span class="metric-val">${e.metrics.roas}%</span></div>` : '',
+  ].filter(Boolean).join('');
+  const tags = (e.tags||[]).map(t => `<span class="entry-tag">${esc(t)}</span>`).join('');
+  return `
+    <div class="entry-card">
+      <div class="entry-header">
+        <div class="entry-meta">
+          <span class="badge badge-month">${esc(e.month)}</span>
+          <span class="badge badge-medium">${esc(e.medium)}</span>
+          <span class="badge badge-obj">${esc(e.objective)}</span>
+          <span class="badge badge-type">${CLIENT_TYPE_LABEL[e.clientType]||e.clientType}</span>
+          <span class="badge badge-genre">${esc(e.genre)}</span>
+          ${e.brand ? `<span style="font-size:11px;color:var(--color-sub);">／${esc(e.brand)}</span>` : ''}
+        </div>
+        <button class="btn-danger" onclick="openDeleteModal('${e.id}')">削除</button>
+      </div>
+      ${stars ? `<div class="entry-stars">${stars}</div>` : ''}
+      <div class="entry-pattern"><strong>勝ちパターン：</strong>${esc(e.pattern)}</div>
+      ${e.insight ? `<div class="entry-pattern" style="color:var(--color-sub);"><strong>学び：</strong>${esc(e.insight)}</div>` : ''}
+      ${metrics ? `<div class="entry-metrics">${metrics}</div>` : ''}
+      ${tags ? `<div class="entry-tags">${tags}</div>` : ''}
+      ${e.registeredBy ? `<div class="entry-registered-by">登録：${esc(e.registeredBy)}</div>` : ''}
+    </div>`;
+}
+
+function clearFilters() {
+  ['filter-medium','filter-objective','filter-clienttype','filter-genre'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('filter-search').value = '';
+  renderList();
+}
+
+// ============================================================
+// 削除
+// ============================================================
+function openDeleteModal(id) {
+  pendingDeleteId = id;
+  document.getElementById('delete-modal').classList.add('show');
+}
+function closeDeleteModal() {
+  pendingDeleteId = null;
+  document.getElementById('delete-modal').classList.remove('show');
+}
+async function confirmDelete() {
+  if (!pendingDeleteId) return;
+  closeDeleteModal();
+  setLoading(true, '削除中...');
+  try {
+    const result = await gasRequest({ action: 'delete', id: pendingDeleteId });
+    if (!result.ok) throw new Error(result.error);
+    if (entriesCache) entriesCache.data = entriesCache.data.filter(e => e.id !== pendingDeleteId);
+    pendingDeleteId = null;
+    updateStats();
+    renderList();
+    showToast('🗑️ 削除しました', 'success');
+  } catch (err) {
+    showToast('削除エラー：' + err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ============================================================
+// エクスポートタブ
+// ============================================================
+async function loadExport() {
+  setLoading(true, 'データを読み込み中...');
+  try {
+    await getEntries();
+    updateExpGenre();
+    renderExport();
+  } catch (err) {
+    showToast('読み込みエラー：' + err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function updateExpGenre() {
+  const typeVal = document.getElementById('exp-clienttype').value;
+  const sel = document.getElementById('exp-genre');
+  sel.innerHTML = '<option value="">すべて</option>';
+  const types = typeVal ? [typeVal] : ['broadcasting','magazine','general'];
+  [...new Set(types.flatMap(t => GENRES[t]))].forEach(g => {
+    sel.innerHTML += `<option>${g}</option>`;
+  });
+}
+
+function selectExportFmt(fmt, el) {
+  exportFormat = fmt;
+  document.querySelectorAll('.export-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  renderExport();
+}
+
+function getExpEntries() {
+  const medium = document.getElementById('exp-medium').value;
+  const obj    = document.getElementById('exp-objective').value;
+  const ct     = document.getElementById('exp-clienttype').value;
+  const genre  = document.getElementById('exp-genre').value;
+  const entries = entriesCache ? entriesCache.data : [];
+  return entries.filter(e => {
+    if (medium && e.medium     !== medium) return false;
+    if (obj    && e.objective  !== obj)   return false;
+    if (ct     && e.clientType !== ct)    return false;
+    if (genre  && e.genre      !== genre) return false;
+    return true;
+  });
+}
+
+function renderExport() {
+  const entries = getExpEntries();
+  document.getElementById('exp-matched-count').textContent = '対象：' + entries.length + '件';
+  let out = '';
+  const lblMap = { prompt:'📋 クリエイティブ生成ツール プロンプト挿入用', markdown:'📄 Markdownドキュメント', json:'💾 JSONバックアップ' };
+  document.getElementById('exp-format-label').textContent = lblMap[exportFormat];
+
+  if (exportFormat === 'prompt')   out = buildPromptExport(entries);
+  else if (exportFormat === 'markdown') out = buildMarkdownExport(entries);
+  else out = JSON.stringify({ exportedAt: new Date().toISOString(), entries }, null, 2);
+
+  document.getElementById('exp-output').textContent = out || '（該当する知見がありません）';
+}
+
+function buildPromptExport(entries) {
+  if (!entries.length) return '（該当する知見がありません）';
+  const medium = document.getElementById('exp-medium').value;
+  const obj    = document.getElementById('exp-objective').value;
+  const ct     = document.getElementById('exp-clienttype').value;
+  const genre  = document.getElementById('exp-genre').value;
+  const cats   = [medium||'媒体：すべて', obj||'目的：すべて', ct ? CLIENT_TYPE_LABEL[ct] : 'タイプ：すべて', genre||'ジャンル：すべて'];
+  const months = [...new Set(entries.map(e=>e.month))].sort().join('、');
+  let out = `━━━━━━━━━━━━━━━━━━━━━━━
+【過去の勝ちパターン（知識ベース）】
+━━━━━━━━━━━━━━━━━━━━━━━
+カテゴリ：${cats.join(' × ')}
+件数：${entries.length}件（${months}）
+
+以下は同カテゴリの過去成功クリエイティブから得られた知見です。
+パターン強度が高い要素を優先的に取り入れてクリエイティブを生成してください。
+━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  [...entries].sort((a,b)=>(b.stars||0)-(a.stars||0)).forEach((e,i) => {
+    out += `■ 知見${i+1}（${e.month}／${e.genre}${e.brand?' ／ '+e.brand:''}）\n`;
+    if (e.stars)   out += `  強度：${'★'.repeat(e.stars)}${'☆'.repeat(5-e.stars)}\n`;
+    out += `  フォーマット：${e.format}\n`;
+    if (e.copy)    out += `  コピー：${e.copy}\n`;
+    if (e.visual)  out += `  ビジュアル：${e.visual}\n`;
+    out += `  勝ちパターン：${e.pattern}\n`;
+    if (e.insight) out += `  学び：${e.insight}\n`;
+    const mp = [];
+    if (e.metrics.ctr  != null) mp.push(`CTR ${e.metrics.ctr}%`);
+    if (e.metrics.cpc  != null) mp.push(`CPC ¥${e.metrics.cpc}`);
+    if (e.metrics.cvr  != null) mp.push(`CVR ${e.metrics.cvr}%`);
+    if (e.metrics.cpa  != null) mp.push(`CPA ¥${e.metrics.cpa}`);
+    if (mp.length) out += `  数値：${mp.join('、')}\n`;
+    if (e.tags&&e.tags.length) out += `  タグ：${e.tags.join('、')}\n`;
+    out += '\n';
+  });
+  out += `━━━━━━━━━━━━━━━━━━━━━━━`;
+  return out;
+}
+
+function buildMarkdownExport(entries) {
+  if (!entries.length) return '（該当する知見がありません）';
+  const now = new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+  let out = `# クリエイティブ知識ベース\n\nエクスポート：${now}  ／  ${entries.length}件\n\n---\n\n`;
+  const byGenre = {};
+  entries.forEach(e => {
+    const key = `${e.clientType}__${e.genre}`;
+    (byGenre[key] = byGenre[key]||[]).push(e);
+  });
+  Object.entries(byGenre).forEach(([key, arr]) => {
+    const [ct, genre] = key.split('__');
+    out += `## ${CLIENT_TYPE_LABEL[ct]||ct} ／ ${genre}\n\n`;
+    arr.forEach((e, i) => {
+      out += `### ${i+1}. ${e.month}分析${e.brand?' （'+e.brand+'）':''}\n\n`;
+      out += `| 項目 | 内容 |\n|------|------|\n`;
+      out += `| 媒体 | ${e.medium} |\n| 目的 | ${e.objective} |\n| フォーマット | ${e.format} |\n`;
+      if (e.copy)              out += `| コピー | ${e.copy} |\n`;
+      if (e.stars)             out += `| 強度 | ${'★'.repeat(e.stars)}${'☆'.repeat(5-e.stars)} |\n`;
+      if (e.metrics.ctr!=null) out += `| CTR | ${e.metrics.ctr}% |\n`;
+      if (e.metrics.cpc!=null) out += `| CPC | ¥${e.metrics.cpc} |\n`;
+      if (e.metrics.cpa!=null) out += `| CPA | ¥${e.metrics.cpa} |\n`;
+      out += `\n**勝ちパターン**\n${e.pattern}\n\n`;
+      if (e.insight) out += `**学び**\n${e.insight}\n\n`;
+      if (e.tags&&e.tags.length) out += `**タグ：** ${e.tags.map(t=>'`'+t+'`').join(' ')}\n\n`;
+      out += '---\n\n';
+    });
+  });
+  return out;
+}
+
+function copyExport() {
+  navigator.clipboard.writeText(document.getElementById('exp-output').textContent).then(() => {
+    const btn = document.getElementById('exp-copy-btn');
+    btn.textContent = '✓ コピーしました'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'コピーする'; btn.classList.remove('copied'); }, 2500);
+  });
+}
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+let toastTimer;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type||'success') + ' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// 起動
+// ============================================================
+(function init() {
+  loadConfig();
+
+  // 設定未完了 → セットアップ画面へ
+  if (!config.gasUrl || !config.googleClientId) {
+    setLoading(false);
+    showSetup();
+    return;
+  }
+
+  // ログイン画面を表示してGoogle Sign-Inを初期化
+  setLoading(false);
+  showLoginScreen();
+  initGoogleSignIn();
+})();
+</script>
+
+</body>
+</html>
